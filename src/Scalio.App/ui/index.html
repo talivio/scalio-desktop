@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <!--
+        ⚠️ İçerik Güvenlik Politikası SIKI ve öyle kalmalı: bu sayfa yerel
+        kaynaklardan sunuluyor ve dışarıya HİÇBİR isteği olmamalı — büyütülen
+        görseller kullanıcının kendi bilgisayarında kalır.
+
+        ⚠️ `unsafe-inline` YOK — satır içi `style=""` KULLANILMAZ. Çalışma
+        anında değişen tek şey (ilerleme çubukları, karşılaştırma çizgisinin
+        konumu) CSSOM üzerinden (`el.style.width` / `el.style.clipPath`)
+        veriliyor; CSP bunu engellemez.
+
+        ⚠️ `img-src` `blob:` DE İÇERİYOR: kuyruk önizlemeleri ve önce/sonra
+        karşılaştırması, köprüden gelen dosya baytlarından üretilen `blob:`
+        adresleriyle gösteriliyor — diskteki görsel hiçbir zaman `file://`
+        olarak sayfaya verilmiyor.
+    -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: blob:;">
+    <title>Scalio</title>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="shell">
+    <!-- ÜST ÇUBUK: marka, iki sekme, sağda etkinlik/abonelik/dil/tema. -->
+    <header class="topbar">
+        <div class="wordmark">
+            <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                <path d="M16 3 4 9v9c0 6 5 9.5 12 11 7-1.5 12-5 12-11V9L16 3Z" fill="var(--brand-600)"/>
+                <path d="m11 17 4-6 3 4 4-6" stroke="#fff" stroke-width="2.2" stroke-linecap="square" fill="none"/>
+            </svg>
+            <span>Scalio</span>
+        </div>
+
+        <nav id="nav" class="nav hidden" aria-label="Main">
+            <button id="nav-main" class="nav-item cut-sm" data-nav="main">
+                <span data-icon="image"></span><span data-i18n="app.nav_main">Upscale</span>
+            </button>
+        </nav>
+
+        <div class="topbar-right">
+            <span id="activity" class="activity hidden" role="status" aria-live="polite">
+                <span class="pulse"></span><span id="activity-text"></span>
+            </span>
+
+            <!--
+                ⚠️ DİL VE TEMA BURADA DEĞİL: ikisi de Ayarlar ekranındaki
+                "Görünüm" kartında. Üst çubukta ikinci bir kopyasını tutmak,
+                aynı ayarın iki ayrı yerden değiştirilmesi demekti.
+            -->
+            <button id="nav-settings-gear" class="icon-button cut-sm" data-i18n-title="help.title" data-i18n-label="help.title">
+                <span data-icon="settings"></span>
+            </button>
+        </div>
+    </header>
+
+    <main id="main-view">
+        <div class="container">
+            <div id="notice-host" aria-live="polite"></div>
+
+            <div id="update-banner" class="hidden">
+                <div class="notice notice-info cut">
+                    <span data-icon="download" class="notice-icon"></span>
+                    <div class="notice-body"><span id="update-text"></span></div>
+                    <button id="update-open" class="cut-sm">
+                        <span data-icon="external"></span><span data-i18n="update.get">Download</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ══ ANA EKRAN ═══════════════════════════════════════════════ -->
+            <section id="main" class="screen hidden">
+                <div class="screen-head">
+                    <h1 data-i18n="main.title">Make your images bigger, without the mush</h1>
+                    <p class="lead" data-i18n="main.intro">Drop photos or a folder below, or pick them by hand.</p>
+                </div>
+
+                <div class="main-grid">
+                    <div class="stack-col">
+                        <div id="dropzone" class="dropzone cut-lg" tabindex="0" role="button" aria-label="Add images">
+                            <!--
+                                ⚠️ SEÇİLEN GÖRSELLER BURADA GÖRÜNÜR — "N görsel
+                                eklendi" bildirimi YERİNE. Kullanıcı ne seçtiğini
+                                metinden değil, önizlemeden görsün; yanlış dosyayı
+                                da buradan (✕) çıkarabilsin.
+                            -->
+                            <div id="pending-previews" class="pending-previews hidden"></div>
+                            <span data-icon="stack" class="hero-icon"></span>
+                            <h2 data-i18n="main.drop_title">Drop images or a folder here</h2>
+                            <p class="muted drop-hint-text" data-i18n="main.drop_hint">JPEG, PNG, WebP, TIFF, BMP</p>
+                            <div class="row stack">
+                                <button id="pick-files" class="btn-primary cut-sm">
+                                    <span data-icon="image"></span><span data-i18n="main.pick_files">Choose images…</span>
+                                </button>
+                                <button id="pick-folder" class="cut-sm">
+                                    <span data-icon="folder"></span><span data-i18n="main.pick_folder">Choose a folder…</span>
+                                </button>
+                            </div>
+                            <input id="file-input" type="file" accept="image/*" multiple class="hidden">
+                        </div>
+
+                        <!-- ══ KUYRUK ═══════════════════════════════════════ -->
+                        <div class="lift">
+                            <div class="card cut queue-card">
+                                <h2 data-i18n="queue.title">Queue</h2>
+
+                                <p id="queue-empty" class="muted stack-sm" data-i18n="queue.empty">No images added yet.</p>
+
+                                <ul id="queue-list" class="queue-list stack-sm hidden"></ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══ AYARLAR PANELİ ═══════════════════════════════════ -->
+                    <aside class="lift settings-col">
+                        <div class="card cut settings-panel">
+                            <h2 data-i18n="settings.panel_title">Upscale settings</h2>
+
+                            <div class="setting-block">
+                                <span class="step-label" data-i18n="settings.size_label">Size</span>
+                                <div class="segmented segmented-wide cut-sm" role="radiogroup">
+                                    <button id="mode-scale" data-mode="scale" role="radio" aria-checked="true" data-i18n="settings.mode_scale">Scale</button>
+                                    <button id="mode-width" data-mode="width" role="radio" aria-checked="false" data-i18n="settings.mode_width">Target width</button>
+                                </div>
+
+                                <div id="scale-options" class="segmented segmented-wide cut-sm stack-sm" role="radiogroup">
+                                    <button data-scale="2" role="radio" aria-checked="true">x2</button>
+                                    <button data-scale="3" role="radio" aria-checked="false">x3</button>
+                                    <button id="scale-4" data-scale="4" role="radio" aria-checked="false">
+                                        x4
+                                    </button>
+                                </div>
+
+                                <label id="width-input-row" class="width-row card-sunken cut-sm stack-sm hidden">
+                                    <input id="target-width" type="number" min="16" step="1" value="2000">
+                                    <span class="muted">px</span>
+                                </label>
+                            </div>
+
+                            <div class="setting-block">
+                                <span class="step-label" data-i18n="settings.model_label">Model</span>
+                                <div id="model-seg" class="segmented segmented-wide cut-sm" role="radiogroup">
+                                    <button data-model="photo" role="radio" aria-checked="true" data-i18n="settings.model_photo">Photo</button>
+                                    <button data-model="anime" role="radio" aria-checked="false" data-i18n="settings.model_drawing">Drawing / logo</button>
+                                </div>
+                            </div>
+
+                            <div class="setting-block">
+                                <span class="step-label" data-i18n="settings.format_label">Output format</span>
+                                <div id="format-seg" class="segmented segmented-wide cut-sm" role="radiogroup">
+                                    <button data-format="png" role="radio" aria-checked="true">PNG</button>
+                                    <button data-format="jpeg" role="radio" aria-checked="false">JPEG</button>
+                                    <button data-format="webp" role="radio" aria-checked="false">WebP</button>
+                                </div>
+
+                                <label id="quality-row" class="quality-row stack-sm hidden">
+                                    <span class="muted" data-i18n="settings.quality_label">Quality</span>
+                                    <input id="quality" type="range" min="1" max="100" value="90">
+                                    <span id="quality-value" class="mono">90</span>
+                                </label>
+                            </div>
+
+                            <div class="setting-block">
+                                <span class="step-label" data-i18n="settings.crop_label">Crop preset</span>
+                                <select id="crop-preset" class="cut-sm">
+                                    <option value="" data-i18n="settings.crop_none">None</option>
+                                    <option value="hero" data-i18n="settings.crop_hero">Hero (2560×1440)</option>
+                                    <option value="card" data-i18n="settings.crop_card">Card (1200×800)</option>
+                                    <option value="instagram" data-i18n="settings.crop_instagram">Instagram (1080×1350)</option>
+                                    <option value="opengraph" data-i18n="settings.crop_opengraph">Open Graph (1200×630)</option>
+                                </select>
+                            </div>
+
+                            <button id="enqueue" class="btn-primary btn-lg cut-sm stack" disabled>
+                                <span data-icon="zoomPlus"></span><span data-i18n="settings.enqueue">Add to queue</span>
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- ══ AYARLAR / YARDIM ═══════════════════════════════════════ -->
+            <section id="help" class="screen hidden">
+                <div class="screen-head">
+                    <h1 data-i18n="help.title">Settings &amp; help</h1>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="lift">
+                        <div class="card cut">
+                            <h2 data-i18n="help.version_title">Version</h2>
+                            <p id="version-line" class="muted stack-sm"></p>
+                            <div class="row stack">
+                                <button id="check-update" class="btn-ghost cut-sm">
+                                    <span data-icon="refresh"></span><span data-i18n="update.check">Check for updates</span>
+                                </button>
+                                <button id="update-open-settings" class="cut-sm hidden">
+                                    <span data-icon="external"></span><span data-i18n="update.get">Download</span>
+                                </button>
+                            </div>
+                            <p class="muted tiny stack-sm" data-i18n="update.manual_note">The download opens in your browser.</p>
+                        </div>
+                    </div>
+
+                    <div class="lift">
+                        <div class="card cut">
+                            <h2><span data-icon="lifebuoy"></span><span data-i18n="settings.support">Help &amp; diagnostics</span></h2>
+                            <p class="muted stack-sm" data-i18n="support.body">Create a diagnostic file to send us if something goes wrong.</p>
+                            <div class="row stack">
+                                <button id="support-bundle" class="cut-sm">
+                                    <span data-icon="log"></span><span data-i18n="support.create">Create diagnostic file</span>
+                                </button>
+                                <button id="open-logs" class="btn-ghost cut-sm">
+                                    <span data-icon="folder"></span><span data-i18n="support.open_folder">Open log folder</span>
+                                </button>
+                            </div>
+                            <p id="support-result" class="muted mono-wrap stack-sm hidden"></p>
+                        </div>
+                    </div>
+
+                    <div class="lift settings-wide">
+                        <div class="card cut">
+                            <h2 data-i18n="settings.appearance">Appearance</h2>
+                            <span class="step-label stack-sm" data-i18n="settings.theme">Theme</span>
+                            <div id="theme-seg" class="segmented cut-sm" role="radiogroup">
+                                <button data-theme="light" role="radio"><span data-icon="sun"></span><span data-i18n="app.theme_light">Light</span></button>
+                                <button data-theme="dark" role="radio"><span data-icon="moon"></span><span data-i18n="app.theme_dark">Dark</span></button>
+                                <button data-theme="system" role="radio"><span data-icon="monitor"></span><span data-i18n="app.theme_system">System</span></button>
+                            </div>
+                            <span class="step-label stack" data-i18n="app.language">Language</span>
+                            <div id="lang-seg" class="segmented cut-sm" role="radiogroup"></div>
+                        </div>
+                    </div>
+
+                    <div class="lift settings-wide">
+                        <div class="card cut">
+                            <h2 data-i18n="help.how_title">How it works</h2>
+                            <ul class="plain-list feature-list stack-sm">
+                                <li><span data-icon="stack"></span><span data-i18n="help.step_1"></span></li>
+                                <li><span data-icon="crop"></span><span data-i18n="help.step_2"></span></li>
+                                <li><span data-icon="zoomPlus"></span><span data-i18n="help.step_3"></span></li>
+                                <li><span data-icon="compare"></span><span data-i18n="help.step_4"></span></li>
+                                <li><span data-icon="check"></span><span data-i18n="help.step_5">Scalio is free: x2, x4, batches and ready-made sizes — no account, no trial, no subscription.</span></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="lift settings-wide">
+                        <div class="card cut">
+                            <h2 data-i18n="settings.about">About</h2>
+                            <ul class="plain-list feature-list stack-sm">
+                                <li><span data-icon="zoomPlus"></span><span data-i18n="settings.about_1">Photos are upscaled with Real-ESRGAN, on this computer.</span></li>
+                                <li><span data-icon="lock"></span><span data-i18n="settings.about_2">Nothing you upscale is ever uploaded.</span></li>
+                                <li><span data-icon="check"></span><span data-i18n="settings.about_3">Every feature is free, with no account needed.</span></li>
+                            </ul>
+                            <button id="open-site" class="btn-ghost cut-sm stack">
+                                <span data-icon="external"></span><span data-i18n="support.website">Scalio website</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- ══ ÖNCE / SONRA ═══════════════════════════════════════════════════ -->
+    <div id="compare-overlay" class="compare-overlay hidden">
+        <div class="compare-panel">
+            <div class="compare-head">
+                <strong id="compare-title"></strong>
+                <button id="compare-close" class="icon-button cut-sm" data-i18n-title="compare.close" data-i18n-label="compare.close">
+                    <span data-icon="close"></span>
+                </button>
+            </div>
+            <div id="compare-stage" class="compare-stage">
+                <img id="compare-after" class="compare-img" alt="">
+                <div id="compare-before-wrap" class="compare-before-wrap">
+                    <img id="compare-before" class="compare-img" alt="">
+                </div>
+                <div id="compare-handle" class="compare-handle"></div>
+            </div>
+            <div class="compare-labels">
+                <span data-i18n="compare.before">Before</span>
+                <span data-i18n="compare.after">After</span>
+            </div>
+        </div>
+    </div>
+
+    <!--
+        ══ MODALLAR ═══════════════════════════════════════════════════════════
+
+        ⚠️ İKİSİ DE `.shell` DIŞINDA: konumları CSS'te `position: fixed` ile
+        verildiği için sırası önemsiz, ama üst çubuğun ÜSTÜNDE durmaları
+        gerekiyor. `openModal`/`closeModal` (app.js) aynı anda ikisinden en
+        fazla birini açık tutar.
+    -->
+    <div id="update-modal" class="modal-backdrop hidden">
+        <div class="modal cut lift" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+            <span data-icon="download" class="hero-icon"></span>
+            <h2 id="update-modal-title"></h2>
+            <p id="update-modal-body" class="muted"></p>
+            <div class="row stack modal-actions">
+                <button id="update-modal-install" class="btn-primary cut-sm">
+                    <span data-icon="download"></span><span id="update-modal-install-label"></span>
+                </button>
+                <button id="update-modal-later" class="btn-ghost cut-sm">
+                    <span data-i18n="update.later">Later</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="icons.js"></script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

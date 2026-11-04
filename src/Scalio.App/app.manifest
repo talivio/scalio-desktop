@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+
+  <!--
+    ⚠️ ANA UYGULAMA YÖNETİCİ OLARAK ÇALIŞMAZ (`asInvoker`).
+
+    Ham disk okuma yönetici yetkisi ister ama bu, uygulamanın TAMAMINI
+    yükseltmek için sebep değil: yükseltilmiş bir süreçte açılan bir tarayıcı
+    motoru ve bir pencere, kurtarma yazılımı için orantısız ve tehlikeli bir
+    yetkidir. Yalnızca ham disk okuyan yardımcı süreç (Scalio.Elevated) UAC
+    ile yükseltilir, işini yapar ve kapanır.
+
+    Ayrıca `requireAdministrator` işaretli bir uygulama her açılışta UAC
+    penceresi gösterir — kullanıcı, Geri Dönüşüm Kutusuna bakmak için bile
+    onay vermek zorunda kalırdı.
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 ve 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <!--
+    Yüksek DPI: bu bildirim olmadan Windows pencereyi bulanık biçimde
+    ölçekler ve uygulama ucuz görünür.
+  -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">permonitorv2,permonitor</dpiAwareness>
+    </windowsSettings>
+  </application>
+
+</assembly>

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!--
+      ⚠️ `LibraryImport` (kaynak üretimli P/Invoke) bunu ZORUNLU kılıyor:
+      üretilen sıralama kodu işaretçi kullanıyor. Klasik `DllImport` bunu
+      istemezdi ama çalışma anında sıralama yapar ve tek dosya / AOT
+      yayınlamada sorun çıkarır — kurulum boyutunu küçültmek bu ürünün
+      yeniden yazılma sebeplerinden biri, o yüzden modern yol seçildi.
+
+      Bizim kendi kodumuzda `unsafe` blok YOKTUR; bayrak yalnızca üretilen
+      kodun derlenmesi için açık.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!--
+      Çekirdek Windows'a bağımlı (ham birim, $Recycle.Bin). Hedef çatıyı
+      `net8.0-windows` yapmak yerine platform kontrolü kodda yapılıyor
+      (`OperatingSystem.IsWindows`), böylece kütüphane macOS portu geldiğinde
+      ortak parçalarıyla derlenmeye devam edebilir.
+    -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.17.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <!--
+    Test projesi `internal` yardimcilari (yol kacisi, devam noktasi cozumu)
+    dogrudan sinayabilsin. Bunlari `public` yapmak, yalnizca test icin genel
+    yuzeyi genisletmek olurdu.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Scalio.Core.Tests" />
+  </ItemGroup>
+
+</Project>

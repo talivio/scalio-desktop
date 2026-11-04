@@ -1,0 +1,19 @@
+Scalio uses the following third-party components, distributed unmodified in
+the "engine" folder of this installation.
+
+1. Real-ESRGAN (models: realesrgan-x4plus, realesrgan-x4plus-anime)
+   https://github.com/xinntao/Real-ESRGAN
+   License: BSD 3-Clause (see LICENSE-Real-ESRGAN.txt)
+
+2. Real-ESRGAN-ncnn-vulkan (realesrgan-ncnn-vulkan.exe)
+   https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan
+   License: MIT (see LICENSE-Real-ESRGAN-ncnn-vulkan.txt)
+
+3. ncnn (statically linked into realesrgan-ncnn-vulkan.exe)
+   https://github.com/Tencent/ncnn
+   License: BSD 3-Clause (see LICENSE-ncnn.txt)
+
+4. vcomp140.dll — Microsoft Visual C++ OpenMP runtime, redistributed under the
+   Microsoft Visual C++ Redistributable license terms.
+
+Scalio is not affiliated with or endorsed by the authors of these projects.

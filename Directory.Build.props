@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    Tüm projeler için ortak yayın ayarları.
+
+    ⚠️ Release'te hata ayıklama sembolü ÜRETİLMEZ. Aksi hâlde yayın klasöründe
+    `.pdb` dosyaları kalıyor ve ürün "tek dosya" olmaktan çıkıyor — bu üründe
+    tek dosya olmak ürünsel bir karar: kurtarılacak diske dosya yaymamak ve
+    USB bellekten çalışabilmek.
+
+    (Semboller gerekirse `-p:DebugType=portable` ile tek seferlik açılır.)
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

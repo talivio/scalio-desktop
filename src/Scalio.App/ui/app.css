@@ -1,0 +1,623 @@
+/*
+ * Scalio masaüstü arayüzü — Talivio tasarım dili.
+ *
+ * ⚠️ BU DOSYA TAILWIND'İN YERİNİ ALIYOR VE BU BİLİNÇLİ. Native uygulamaya bir
+ * Node derleme adımı sokmak, tam da kurtulmaya çalıştığımız şeyi geri
+ * getirirdi: kurulumu şişiren, sürüm çakışan, sessizce bozulan bir araç
+ * zinciri. Primitifler (kesik köşe, üç katmanlı gölge, dalgalanan ışık)
+ * `talivio/sdk`'nın CSS'inden BİREBİR taşındı; sayılar uydurulmadı.
+ *
+ * ⚠️ SATIR İÇİ STİL YOK (CSP `style-src 'self'`). Çalışma anında değişen tek
+ * şey ilerleme/doluluk çubuklarının genişliği; o da CSSOM'dan
+ * (`el.style.width`) veriliyor, CSP bunu engellemez.
+ */
+
+/* ───────── Renk sistemi ───────── */
+:root {
+    --brand-300: oklch(80% 0.09 247);
+    --brand-400: oklch(70% 0.13 247);
+    --brand-500: oklch(60.5% 0.17 247);
+    --brand-600: oklch(53% 0.16 247);
+    --brand-700: oklch(45% 0.14 247);
+
+    /* Marka tonunun çok açık hâli: seçili disk, birincil tarama kartı, öneri kutusu. */
+    --brand-tint: oklch(96% 0.022 247);
+    --brand-tint-strong: oklch(92.5% 0.045 247);
+
+    --page: oklch(98.5% 0 0);
+    --surface: #ffffff;
+    --surface-sunken: oklch(96.7% 0 0);
+    --surface-hover: oklch(94% 0 0);
+    --text: oklch(37.1% 0 0);
+    --text-strong: oklch(20.5% 0 0);
+    --text-muted: oklch(55.6% 0 0);
+
+    --ok-bg: oklch(95% 0.05 155);
+    --ok-text: oklch(42% 0.12 155);
+    --warn-bg: oklch(96.2% 0.059 95.6);
+    --warn-text: oklch(41.4% 0.112 45.9);
+    --bad-bg: oklch(94% 0.04 25);
+    --bad-text: oklch(45% 0.15 25);
+
+    color-scheme: light;
+}
+
+:root.dark {
+    --brand-tint: oklch(24% 0.035 247);
+    --brand-tint-strong: oklch(30% 0.06 247);
+
+    --page: oklch(14.5% 0 0);
+    --surface: oklch(20.5% 0 0);
+    --surface-sunken: oklch(12.5% 0 0);
+    --surface-hover: oklch(26% 0 0);
+    --text: oklch(87% 0 0);
+    --text-strong: #ffffff;
+    --text-muted: oklch(62% 0 0);
+
+    --ok-bg: oklch(28% 0.06 155);
+    --ok-text: oklch(88% 0.09 155);
+    --warn-bg: oklch(30% 0.07 60);
+    --warn-text: oklch(90% 0.08 80);
+    --bad-bg: oklch(30% 0.08 25);
+    --bad-text: oklch(88% 0.08 25);
+
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    background: var(--page);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.55;
+    height: 100vh;
+    overflow: hidden;
+
+    /* ⚠️ Uygulama penceresi metin seçimi için değil: kazara seçim, sürükleme
+       ve mavi vurgu masaüstü uygulamasında yabancı duruyor. Yalnızca gerçekten
+       kopyalanabilir olması gereken alanlar (yollar, kodlar) muaf. */
+    user-select: none;
+    cursor: default;
+}
+
+h1, h2, h3 { font-weight: 600; color: var(--text-strong); line-height: 1.25; }
+h1 { font-size: 24px; letter-spacing: -0.01em; }
+h2 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
+h3 { font-size: 15px; }
+
+p { margin: 0; }
+
+/* ───────── Kesik köşe: üst-sol ve alt-sağ kesilir (tasarım dili §1.1) ───────── */
+.cut, .cut-sm, .cut-lg, .step-num, .drive-tile, .avatar, .chip, .bubble {
+    clip-path: polygon(
+        var(--cut) 0,
+        100% 0,
+        100% calc(100% - var(--cut)),
+        calc(100% - var(--cut)) 100%,
+        0 100%,
+        0 var(--cut)
+    );
+}
+
+.cut-sm, .step-num, .drive-tile, .avatar, .chip, .bubble { --cut: 8px; }
+.cut    { --cut: 14px; }
+.cut-lg { --cut: 22px; }
+
+/*
+ * ⚠️ Kırpılan elemanda DIŞ odak halkası kırpma sınırının dışında kalır ve HİÇ
+ * GÖRÜNMEZ — klavyeyle gezen kullanıcı nerede olduğunu kaybeder. Halka bu
+ * yüzden İÇE veriliyor.
+ */
+:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--brand-500);
+}
+
+/*
+ * ───────── Gölge: ÜÇ katman, `drop-shadow` ─────────
+ * ⚠️ Bu sınıf KIRPILAN elemana değil, onu SARAN elemana verilir.
+ * ⚠️ `box-shadow` DEĞİL: kutu gölgesi kırpma sınırında biter, ışık köşelerden
+ *    taşmaz ve blok zeminden "kalkmış" görünmez.
+ */
+.lift {
+    filter:
+        drop-shadow(0 1px 1px rgb(15 23 42 / 0.05))
+        drop-shadow(0 4px 6px rgb(15 23 42 / 0.07))
+        drop-shadow(0 16px 24px rgb(15 23 42 / 0.10));
+}
+
+.lift-sm {
+    filter:
+        drop-shadow(0 1px 1px rgb(15 23 42 / 0.05))
+        drop-shadow(0 2px 4px rgb(15 23 42 / 0.06));
+}
+
+/*
+ * ⚠️ Koyu temada saf gölge GÖRÜNMEZ — siyah üstüne siyah. İlk katman ince bir
+ * AÇIK kenar ışığına dönüyor; çerçeve çizmeden kenarı okunur kılan tek yol.
+ */
+.dark .lift {
+    filter:
+        drop-shadow(0 0 0.5px rgb(147 200 238 / 0.35))
+        drop-shadow(0 4px 8px rgb(0 0 0 / 0.5))
+        drop-shadow(0 20px 32px rgb(0 0 0 / 0.55));
+}
+
+.dark .lift-sm {
+    filter:
+        drop-shadow(0 0 0.5px rgb(147 200 238 / 0.28))
+        drop-shadow(0 2px 6px rgb(0 0 0 / 0.45));
+}
+
+/* ───────── Dalgalanan mavi ışık: yalnızca ekranın ANA bloğunda ───────── */
+@keyframes glow-drift {
+    0%, 100% {
+        filter:
+            drop-shadow(0 1px 1px rgb(15 23 42 / 0.05))
+            drop-shadow(0 6px 18px rgb(48 181 248 / 0.14))
+            drop-shadow(0 18px 38px rgb(48 181 248 / 0.10));
+    }
+    33% {
+        filter:
+            drop-shadow(0 1px 1px rgb(15 23 42 / 0.05))
+            drop-shadow(-8px 10px 24px rgb(48 181 248 / 0.20))
+            drop-shadow(12px 24px 46px rgb(48 181 248 / 0.11));
+    }
+    66% {
+        filter:
+            drop-shadow(0 1px 1px rgb(15 23 42 / 0.05))
+            drop-shadow(9px 7px 20px rgb(48 181 248 / 0.15))
+            drop-shadow(-10px 22px 40px rgb(48 181 248 / 0.12));
+    }
+}
+
+.glow { animation: glow-drift 11s ease-in-out infinite; }
+
+/* ⚠️ Hareket azaltma isteği karşılanır: sonsuz döngü, vestibüler rahatsızlığı
+   olan biri için ekranı okunamaz kılar. Kardeş ürünümüz erişilebilirlik
+   denetimi satıyor; kendi arayüzümüzde bunu atlamak tutarsız olurdu. */
+@media (prefers-reduced-motion: reduce) {
+    .glow { animation: none; filter: none; }
+    .progress-bar > div.indeterminate { animation: none; width: 100%; opacity: 0.5; }
+    .spinner, .pulse { animation: none; }
+    .modal-backdrop:not(.hidden) { animation: none; }
+    * { transition: none !important; }
+}
+
+/* ───────── Kabuk ───────── */
+.shell { display: flex; flex-direction: column; height: 100vh; }
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 24px;
+    flex-shrink: 0;
+}
+
+.wordmark { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; color: var(--text-strong); min-width: 120px; }
+.wordmark svg { width: 26px; height: 26px; }
+
+.nav { display: flex; gap: 4px; flex: 1; justify-content: center; }
+
+.nav-item {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 8px 14px;
+    font-weight: 500;
+}
+
+.nav-item:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text); }
+.nav-item.nav-active { background: var(--brand-tint); color: var(--text-strong); }
+.nav-item.nav-active [data-icon] { color: var(--brand-600); }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; min-width: 120px; justify-content: flex-end; margin-left: auto; }
+
+main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 24px 32px; }
+.container { max-width: 940px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+.screen { display: flex; flex-direction: column; gap: 20px; }
+.screen-head { display: flex; flex-direction: column; gap: 4px; }
+.screen-head .lead { font-size: 14px; color: var(--text-muted); max-width: 620px; }
+
+.card { background: var(--surface); padding: 28px; }
+
+/*
+ * ⚠️ BAŞLIK ALTI BOŞLUĞU TEK DEĞER. Kartlarda `h2`'den sonraki ilk eleman
+ * kimi yerde `stack` (18px), kimi yerde sınıfsız (0px) idi; aynı ekranda
+ * kartlar birbirine benzemiyordu. Standart: `stack-sm` ile aynı 8px.
+ * `.step-label` istisna — kendi üst boşluğu bilinçli olarak daha geniş.
+ */
+.settings-grid .card > h2 + *:not(.step-label) { margin-top: 8px; }
+.card-sunken { background: var(--surface-sunken); padding: 16px; }
+
+.step-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    display: block;
+}
+
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.spread { justify-content: space-between; align-items: flex-start; }
+.screen-head.spread { flex-direction: row; gap: 16px; flex-wrap: wrap; }
+.muted { color: var(--text-muted); font-size: 12.5px; }
+.tiny { font-size: 11.5px; }
+.mono { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; user-select: text; cursor: text; }
+.mono-wrap { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; user-select: text; cursor: text; word-break: break-all; }
+strong { color: var(--text-strong); font-weight: 600; }
+.lead { font-size: 14px; }
+
+.stack-lg { margin-top: 24px; }
+.stack    { margin-top: 18px; }
+.stack-sm { margin-top: 8px; }
+.stack-xs { margin-top: 4px; }
+
+.hidden { display: none !important; }
+
+/* ───────── Kontroller: hiçbir yerde çerçeve yok, ton farkı var (§1.2) ───────── */
+button, select {
+    font: inherit;
+    border: 0;
+    cursor: pointer;
+    color: inherit;
+    background: var(--surface-sunken);
+    padding: 9px 16px;
+    transition: background 120ms ease, color 120ms ease;
+}
+
+button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+button:hover:not(:disabled), select:hover { background: var(--surface-hover); }
+
+.btn-primary { background: var(--brand-600); color: #fff; font-weight: 500; padding: 10px 20px; }
+.btn-primary:hover:not(:disabled) { background: var(--brand-700); }
+.btn-lg { padding: 13px 26px; font-size: 15px; }
+.btn-ghost { background: transparent; color: var(--text-muted); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text); }
+.icon-button { padding: 8px 9px; }
+.icon-button [data-icon] { margin: 0; }
+
+/* ⚠️ Devre dışı düğme DEVRE DIŞI GÖRÜNMELİ: önceki sürümde hedef seçmeden
+   "kurtar"a basan kullanıcı hiçbir şey olmadığını görüp uygulamayı bozuk
+   sanıyordu. */
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+select { padding: 8px 32px 8px 12px; appearance: none; }
+select.lang-select { font-size: 12px; font-weight: 600; padding: 7px 26px 7px 10px; background: var(--surface-sunken); }
+
+.chip { padding: 5px 11px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; line-height: 1.4; }
+.chip-ok   { background: var(--ok-bg);   color: var(--ok-text); }
+.chip-warn { background: var(--warn-bg); color: var(--warn-text); }
+.chip-bad  { background: var(--bad-bg);  color: var(--bad-text); }
+.chip-info { background: var(--surface-sunken); color: var(--text-muted); }
+.chip-brand { background: var(--brand-tint-strong); color: var(--brand-700); }
+.dark .chip-brand { color: var(--brand-300); }
+
+/* Tıklanabilir çip (dosya türü, örnek cümle, tür süzgeci). Etkin olanı TON söyler. */
+.chip-toggle { cursor: pointer; background: var(--surface-sunken); color: var(--text); padding: 6px 12px; }
+.chip-toggle:hover:not(:disabled) { background: var(--surface-hover); }
+.chip-toggle.chip-active { background: var(--brand-600); color: #fff; }
+.chip-toggle.chip-active:hover:not(:disabled) { background: var(--brand-700); }
+.chip-toggle .chip-count { opacity: 0.7; font-weight: 400; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Bölümlü seçici (tema, dil) */
+.segmented { display: inline-flex; background: var(--surface-sunken); padding: 3px; gap: 2px; }
+.segmented button { background: transparent; color: var(--text-muted); padding: 6px 12px; font-size: 13px; }
+.segmented button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.segmented button.seg-active { background: var(--surface); color: var(--text-strong); }
+.dark .segmented button.seg-active { background: var(--surface-hover); }
+
+/* ───────── Etkinlik göstergesi ve döner simge ───────── */
+.activity { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
+
+/* İşlevsel gösterge: yuvarlak kalabilir (tasarım dili §1, istisna). */
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-500); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+
+.spinner {
+    width: 16px; height: 16px; flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid var(--surface-hover);
+    border-top-color: var(--brand-500);
+    animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.waiting-row { display: flex; align-items: flex-start; gap: 12px; }
+.waiting-row .spinner { margin-top: 3px; }
+
+/* ───────── Bildirim kutuları ───────── */
+/*
+   ⚠️ Kırmızı yalnız gerçek ARIZA için. "Yönetici izni gerekiyor" ve
+   "abonelik gerekiyor" arıza değil, yapılacak bir iş: sarı/mavi ton alır.
+   Kurtarma yazılımında panik, yanlış düğmeye basmanın en kısa yolu.
+*/
+.notice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; background: var(--surface); }
+.notice-info { box-shadow: inset 0 0 0 2px var(--brand-500); }
+.notice-info .notice-icon { color: var(--brand-600); }
+.notice-warn { background: var(--warn-bg); color: var(--warn-text); }
+.notice-bad  { background: var(--bad-bg);  color: var(--bad-text); }
+.notice-ok   { background: var(--ok-bg);   color: var(--ok-text); }
+.notice-icon { flex-shrink: 0; margin-top: 1px; }
+.notice-icon .icon { width: 19px; height: 19px; }
+.notice-body { flex: 1; min-width: 0; }
+.notice-body strong { display: block; color: inherit; margin-bottom: 2px; }
+.notice-body .notice-hint { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+.notice-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.notice-warn button, .notice-bad button, .notice-ok button { background: rgb(255 255 255 / 0.55); color: inherit; }
+.dark .notice-warn button, .dark .notice-bad button, .dark .notice-ok button { background: rgb(0 0 0 / 0.25); }
+.notice-warn .btn-primary, .notice-bad .btn-primary, .notice-ok .btn-primary { background: var(--brand-600); color: #fff; }
+.notice-close { background: transparent; padding: 4px; color: inherit; opacity: 0.7; }
+.notice-close:hover:not(:disabled) { opacity: 1; background: transparent; }
+#notice-host:empty { display: none; }
+#notice-host .lift + .lift { margin-top: 10px; }
+
+/* ───────── Modal (güncelleme, ödeme) ───────── */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgb(15 23 42 / 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 50;
+}
+
+.dark .modal-backdrop { background: rgb(0 0 0 / 0.6); }
+
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+.modal-backdrop:not(.hidden) { animation: modal-fade 160ms ease; }
+
+.modal {
+    background: var(--surface);
+    padding: 32px;
+    max-width: 460px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.modal h2 { margin-top: 6px; }
+.modal .hero-icon .icon { margin-bottom: 4px; }
+.modal-actions { justify-content: flex-end; }
+
+.hero-icon .icon { width: 44px; height: 44px; color: var(--brand-600); margin-bottom: 14px; }
+.muted-icon .icon { color: var(--text-muted); }
+
+/* ───────── Ayarlar ───────── */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.settings-wide { grid-column: 1 / -1; }
+.settings-grid .card { padding: 24px; }
+
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.feature-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.feature-list li { display: flex; gap: 10px; align-items: flex-start; }
+.feature-list li [data-icon] { margin-top: 1px; color: var(--brand-600); flex-shrink: 0; }
+.feature-list li.muted [data-icon] { color: var(--text-muted); }
+
+/* ───────── İkonlar (icons.js gömülü SVG basar) ───────── */
+/*
+   ⚠️ İkon KUTUSU değil, YAZIYLA HİZALI bir işaret. `vertical-align` ile
+   temel çizgiye oturtuluyor; `display:block` bırakılsaydı satır yüksekliğini
+   bozup her düğmeyi 4px büyütüyordu (ölçüldü).
+
+   ⚠️ `flex-shrink: 0` ŞART: dar pencerede uzun etiketli düğmelerde ikon
+   eziliyor ve oval bir lekeye dönüşüyordu.
+*/
+[data-icon] { display: inline-flex; align-items: center; flex-shrink: 0; }
+.icon { width: 17px; height: 17px; vertical-align: -3px; }
+h2 > [data-icon] .icon { width: 19px; height: 19px; color: var(--brand-600); }
+
+/* ═════════ Scalio — ana ekran ═════════ */
+
+.main-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.stack-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.settings-col { position: sticky; top: 0; }
+.settings-panel { display: flex; flex-direction: column; gap: 18px; }
+.setting-block { display: flex; flex-direction: column; gap: 8px; }
+
+.dropzone {
+    background: var(--surface);
+    border: 2px dashed var(--surface-hover);
+    padding: 40px 28px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.dropzone .hero-icon .icon { width: 34px; height: 34px; margin-bottom: 6px; color: var(--text-muted); }
+.dropzone h2 { justify-content: center; }
+.dropzone.drop-active { background: var(--brand-tint); border-color: var(--brand-500); }
+
+/*
+ * ───────── Ayarlanmayı bekleyen görseller ─────────
+ * ⚠️ "N görsel eklendi" bildiriminin YERİNE geçer — kullanıcı ne seçtiğini
+ * metinden değil, gerçek önizlemeden görür.
+ */
+.pending-previews {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.pending-thumb {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    background: var(--surface-sunken);
+    overflow: hidden;
+}
+
+.pending-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.pending-thumb .pending-thumb-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.pending-thumb-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 20px;
+    height: 20px;
+    background: rgb(0 0 0 / 0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.pending-thumb-remove .icon { width: 12px; height: 12px; }
+.pending-thumb-remove:hover { background: rgb(0 0 0 / 0.75); }
+
+/* Önizlemeler varken büyük "sürükle-bırak" daveti gereksiz yer kaplamasın. */
+.dropzone.has-pending .hero-icon,
+.dropzone.has-pending h2,
+.dropzone.has-pending .drop-hint-text {
+    display: none;
+}
+
+.dropzone.has-pending { padding: 20px 28px; }
+
+.segmented-wide { display: grid; width: 100%; }
+#mode-scale, #mode-width { grid-template-columns: 1fr 1fr; }
+#scale-options { grid-template-columns: repeat(3, 1fr); }
+#model-seg { grid-template-columns: 1fr 1fr; }
+#format-seg { grid-template-columns: repeat(3, 1fr); }
+.segmented-wide button { justify-content: center; position: relative; }
+
+.segmented-wide button:disabled, .chip-toggle:disabled { opacity: 0.55; cursor: not-allowed; }
+select:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.width-row { display: flex; align-items: center; gap: 8px; }
+.width-row input[type="number"] { border: 0; background: transparent; color: inherit; font: inherit; width: 100%; user-select: text; cursor: text; }
+
+.quality-row { display: flex; align-items: center; gap: 10px; }
+.quality-row input[type="range"] { flex: 1; accent-color: var(--brand-600); }
+
+select#crop-preset { width: 100%; padding: 9px 10px; background: var(--surface-sunken); color: inherit; }
+
+/* ───────── Kuyruk ───────── */
+.queue-card { display: flex; flex-direction: column; gap: 4px; }
+.queue-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-sunken);
+    padding: 10px 14px;
+}
+
+.queue-thumb {
+    width: 44px;
+    height: 44px;
+    background: var(--surface-hover);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+}
+
+.queue-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.queue-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.queue-name { font-weight: 500; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.queue-status.tone-bad { color: var(--bad-text); }
+.queue-status.tone-ok { color: var(--ok-text); }
+.queue-status .spinner { width: 12px; height: 12px; border-width: 2px; }
+.queue-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.queue-actions button { padding: 7px 10px; background: var(--surface); }
+.queue-actions button:hover:not(:disabled) { background: var(--surface-hover); }
+
+/* ───────── Önce / sonra karşılaştırma ───────── */
+.compare-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 32px;
+}
+
+.compare-panel { background: var(--surface); padding: 18px; max-width: 92vw; max-height: 92vh; display: flex; flex-direction: column; gap: 10px; }
+.compare-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.compare-stage {
+    position: relative;
+    max-width: 82vw;
+    max-height: 72vh;
+    overflow: hidden;
+    background: var(--surface-sunken);
+    cursor: ew-resize;
+    user-select: none;
+}
+
+.compare-img { display: block; max-width: 82vw; max-height: 72vh; width: auto; height: auto; pointer-events: none; }
+.compare-before-wrap { position: absolute; inset: 0; overflow: hidden; width: 50%; }
+.compare-before-wrap .compare-img { position: absolute; top: 0; left: 0; max-width: none; width: var(--compare-w, 0); height: 100%; object-fit: cover; }
+
+.compare-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 3px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+    transform: translateX(-1.5px);
+}
+
+.compare-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 28px;
+    height: 28px;
+    background: #fff;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+
+.compare-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+
+/* ───────── Dar pencere ───────── */
+@media (max-width: 900px) {
+    .settings-grid, .about-grid, .scan-options, .main-grid { grid-template-columns: 1fr; }
+    .nav-item span:last-child { display: none; }
+    .nav-item { padding: 8px 10px; }
+    .search-field input { width: 160px; }
+    .col-date { display: none; }
+    .settings-col { position: static; }
+}
+
+@media (max-height: 640px) {
+    .table-wrap { max-height: 46vh; }
+    .chat-log { height: 40vh; }
+}

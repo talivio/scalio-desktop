@@ -1,0 +1,102 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <!-- `LibraryImport` (AttachConsole) kaynak üretimli sıralama kullanıyor. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <AssemblyName>Scalio</AssemblyName>
+    <RootNamespace>Scalio.App</RootNamespace>
+    <Version>0.3.0</Version>
+
+    <!--
+      ⚠️ KÜNYE EKSİKSİZ DOLDURULUR ve bu kozmetik değil.
+
+      SmartScreen ve antivirüs sezgileri, imzasız bir ikilide en azından
+      tutarlı bir yayıncı künyesi arar; boş künyeli bir exe daha kötü puan
+      alır. Ayrıca kullanıcı "Bilinmeyen yayıncı" uyarısında yalnızca bu
+      alanları görüyor — dosya adından başka hiçbir şey yoksa uyarı çok daha
+      korkutucu okunuyor.
+    -->
+    <Product>Scalio</Product>
+    <Company>Talivio Technology</Company>
+    <Authors>Talivio Technology</Authors>
+    <AssemblyTitle>Scalio</AssemblyTitle>
+    <Description>Görsel büyütme aracı — Real-ESRGAN motoruyla.</Description>
+    <Copyright>© 2026 Talivio Technology</Copyright>
+
+    <!--
+      ⚠️ İkon `tools/make-icon.ps1` ile üretiliyor ve arayüzdeki SVG ile AYNI
+      biçimi taşıyor. Electron sürümünden kalan icon.ico NativePHP'nin
+      varsayılanıydı, Scalio'nun değil.
+    -->
+    <ApplicationIcon>scalio.ico</ApplicationIcon>
+
+    <!--
+      ⚠️ Sürüm 2.0.0'dan başlıyor: 1.x NativePHP/Electron sürümleriydi ve bu
+      tamamen farklı bir ikili. Aynı numara dizisini sürdürmek, kullanıcının
+      "güncelleme" sandığı şeyin aslında başka bir uygulama olduğunu gizlerdi.
+    -->
+
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scalio.Core\Scalio.Core.csproj" />
+
+    <!--
+      ⚠️ AYRI BİR YÜKSELTİLMİŞ .EXE YOK.
+
+      Önce ayrı bir proje vardı; iki sebeple birleştirildi. Birincisi ürünsel:
+      bu bir kurtarma aracı ve kurtarılacak diske program kurmak, geri
+      getirmek istediğimiz kümelerin üzerine yazma riski demek — tek dosya
+      USB bellekten çalışabiliyor. İkincisi somut: bağımsız (self-contained)
+      bir exe'ye çerçeve bağımlı bir exe'den başvurulamıyor (NETSDK1151) ve
+      "yardımcı bulunamadı" diye yeni bir arıza sınıfı doğuyordu.
+
+      Ayrı olması gereken şey DOSYA değil YETKİ: uygulama kendini UAC ile,
+      yükseltilmiş iş argümanıyla yeniden başlatıyor (bkz. App.xaml.cs) ve iş
+      bitince o süreç kapanıyor.
+
+      ⚠️ Argümanın adı bu yorumda YAZILAMAZ: XML yorumu iki tire içeremez.
+    -->
+  </ItemGroup>
+
+
+  <!--
+    ⚠️ ARAYÜZ İKİLİYE GÖMÜLÜR, klasör olarak kopyalanmaz.
+
+    İki sebep. Birincisi TAŞINABİLİRLİK: bu bir kurtarma aracı ve kurtarılacak
+    diske dosya yaymak istemiyoruz — tek bir .exe USB bellekten çalışıyor.
+    İkincisi BÜTÜNLÜK: yanı başında duran bir `ui/app.js`, uygulamanın
+    davranışını değiştirmek için açık bir kapıdır; gömülü kaynak öyle değil.
+
+    Yerel HTTP sunucusu yine YOK: kaynaklar WebView2'ye doğrudan akışla
+    veriliyor (bkz. MainWindow). Port çakışması ve güvenlik duvarı uyarısı
+    diye bir hata sınıfı kalmıyor.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="ui\**\*" LogicalName="ui/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    Yayınlanan klasörde YALNIZCA .exe kalsın: hata ayıklama sembolleri ve
+    paket belgeleri kullanıcıya gitmez.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <PublishDocumentationFiles>false</PublishDocumentationFiles>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+  </PropertyGroup>
+
+</Project>
