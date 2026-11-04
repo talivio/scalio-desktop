@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet test tests/Scalio.Core.Tests --nologo
+
+      - name: Install Inno Setup
+        run: |
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) { choco install innosetup -y --no-progress }
+
+      - name: Build installer
+        shell: pwsh
+        run: ./publish.ps1
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/Scalio-*-setup.exe | Select-Object -First 1
+          (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLower() + '  ' + $setup.Name | Out-File -Encoding ascii "$($setup.FullName).sha256"
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Scalio-*-setup.exe
+            dist/Scalio-*-setup.exe.sha256
