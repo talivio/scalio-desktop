@@ -1,7 +1,10 @@
 name: Release
 
+# ⚠️ Her dal push'unda derler ve sınar; GitHub Releases'e YALNIZ `v*` etiketinde
+# dosya eklenir (yayın adımları `refs/tags/` koşuluna bağlı).
 on:
   push:
+    branches: ['**']
     tags: ['v*']
   workflow_dispatch:
 
