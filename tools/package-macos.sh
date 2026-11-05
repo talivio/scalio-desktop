@@ -43,7 +43,7 @@ echo "Scalio $version — macOS paketi"
 for rid in osx-arm64 osx-x64; do
     arch="${rid#osx-}"
 
-    echo "Yayınlanıyor: $rid…"
+    echo "Yayınlanıyor: ${rid}…"
 
     dotnet publish "$root/src/Scalio.Desktop/Scalio.Desktop.csproj" \
         -c Release -r "$rid" --self-contained true \
