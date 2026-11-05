@@ -12,7 +12,6 @@
 
     <AssemblyName>Scalio</AssemblyName>
     <RootNamespace>Scalio.App</RootNamespace>
-    <Version>0.3.0</Version>
 
     <!--
       ⚠️ KÜNYE EKSİKSİZ DOLDURULUR ve bu kozmetik değil.
@@ -52,6 +51,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Scalio.Core\Scalio.Core.csproj" />
+    <ProjectReference Include="..\Scalio.Shell\Scalio.Shell.csproj" />
 
     <!--
       ⚠️ AYRI BİR YÜKSELTİLMİŞ .EXE YOK.
@@ -73,20 +73,10 @@
 
 
   <!--
-    ⚠️ ARAYÜZ İKİLİYE GÖMÜLÜR, klasör olarak kopyalanmaz.
-
-    İki sebep. Birincisi TAŞINABİLİRLİK: bu bir kurtarma aracı ve kurtarılacak
-    diske dosya yaymak istemiyoruz — tek bir .exe USB bellekten çalışıyor.
-    İkincisi BÜTÜNLÜK: yanı başında duran bir `ui/app.js`, uygulamanın
-    davranışını değiştirmek için açık bir kapıdır; gömülü kaynak öyle değil.
-
-    Yerel HTTP sunucusu yine YOK: kaynaklar WebView2'ye doğrudan akışla
-    veriliyor (bkz. MainWindow). Port çakışması ve güvenlik duvarı uyarısı
-    diye bir hata sınıfı kalmıyor.
+    Arayüz (ui/) ve köprü Scalio.Shell'de: macOS/Linux kabuğu (Scalio.Desktop)
+    aynı dosyaları kullanır. Arayüz yine ikiliye gömülü, klasör olarak
+    kopyalanmaz (bkz. Scalio.Shell.csproj).
   -->
-  <ItemGroup>
-    <EmbeddedResource Include="ui\**\*" LogicalName="ui/%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
 
   <!--
     Yayınlanan klasörde YALNIZCA .exe kalsın: hata ayıklama sembolleri ve

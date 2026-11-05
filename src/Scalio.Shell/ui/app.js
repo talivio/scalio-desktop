@@ -15,12 +15,41 @@
 
 
 /*
- * ⚠️ Köprü yoksa SESSİZCE PATLAMAZ. Bu sayfa normal bir tarayıcıda da
- * açılabiliyor (tasarımı gözden geçirmek için) ama orada
- * `window.chrome.webview` yoktur. Önizlemede ÖRNEK VERİ üreten bir taklit
- * köprü devreye girer; her ekran gezilebilir ve bu açıkça yazılır.
+ * Yerel kabuğun mesaj kanalı — iki kabuk, tek arayüz.
+ *
+ * - Windows (WPF + WebView2): `window.chrome.webview`, nesne olarak gider/gelir.
+ * - macOS / Linux (Photino: WKWebView / WebKitGTK): `window.external`
+ *   `sendMessage`/`receiveMessage`, METİN olarak gider/gelir — JSON burada
+ *   çevrilir.
+ *
+ * ⚠️ `window.external` düz tarayıcılarda da VAR (eski bir IE kalıntısı, boş
+ * nesne); bu yüzden varlığına değil, `sendMessage`'ın işlev olmasına bakılır.
  */
-const hasBridge = Boolean(window.chrome?.webview);
+const nativeHost = (() => {
+    if (window.chrome?.webview) {
+        return {
+            post: (message) => window.chrome.webview.postMessage(message),
+            listen: (fn) => window.chrome.webview.addEventListener('message', (event) => fn(event.data)),
+        };
+    }
+
+    if (typeof window.external?.sendMessage === 'function') {
+        return {
+            post: (message) => window.external.sendMessage(JSON.stringify(message)),
+            listen: (fn) => window.external.receiveMessage((text) => fn(JSON.parse(text))),
+        };
+    }
+
+    return null;
+})();
+
+/*
+ * ⚠️ Köprü yoksa SESSİZCE PATLAMAZ. Bu sayfa normal bir tarayıcıda da
+ * açılabiliyor (tasarımı gözden geçirmek için) ama orada yerel kabuk yoktur.
+ * Önizlemede ÖRNEK VERİ üreten bir taklit köprü devreye girer; her ekran
+ * gezilebilir ve bu açıkça yazılır.
+ */
+const hasBridge = nativeHost !== null;
 
 /** Kuyruk olayı gibi istek-cevap eşleşmesi olmayan mesajları dinleyenler. */
 const eventListeners = new Set();
@@ -39,9 +68,7 @@ const realBridge = () => {
     const pending = new Map();
     let counter = 0;
 
-    window.chrome.webview.addEventListener('message', (event) => {
-        const message = event.data;
-
+    nativeHost.listen((message) => {
         // ⚠️ Kimliksiz mesaj bir İSTEĞİN CEVABI DEĞİL, bir OLAY (kuyruk
         // durumu). Bekleyen istek eşlemesinden ayrı ele alınır.
         if (message.kind === 'event') {
@@ -70,7 +97,7 @@ const realBridge = () => {
 
             return new Promise((resolve, reject) => {
                 pending.set(id, { resolve, reject });
-                window.chrome.webview.postMessage({ id, action, ...payload });
+                nativeHost.post({ id, action, ...payload });
             });
         },
     };
@@ -502,20 +529,64 @@ async function pickFolder() {
     });
 });
 
-dropzone.addEventListener('drop', (event) => {
+dropzone.addEventListener('drop', async (event) => {
     const files = [...(event.dataTransfer?.files ?? [])];
+    const paths = await Promise.all(files.map(droppedPath));
 
-    // ⚠️ `file.path` yalnız WebView2 içinde dolu gelir (yerel sürükle-bırak).
-    // Düz bir tarayıcıda (önizleme) bu alan yok; önizlemede dosya adı kaynak
-    // yolu yerine geçer, çünkü gerçek bir diske zaten bakılmıyor.
-    const paths = files.map((file) => file.path || file.name).filter(Boolean);
+    const kept = files.filter((_, i) => paths[i]);
 
-    if (paths.length > 0) {
+    if (kept.length > 0) {
         // Sürüklenen dosyalar gerçek `File` nesneleri: köprüye hiç gitmeden
         // `URL.createObjectURL` ile anında önizleme üretilebilir.
-        addPendingFiles(paths, files);
+        addPendingFiles(paths.filter(Boolean), kept);
+    }
+
+    if (kept.length < files.length) {
+        notify({ tone: 'error', message: t('main.drop_failed') });
     }
 });
+
+/**
+ * Bırakılan dosyanın motorun okuyabileceği yolu.
+ *
+ * ⚠️ `file.path` YALNIZ WebView2'de (Windows) dolu gelir. macOS ve Linux'un
+ * WebKit'i bırakılan dosyanın diskteki yerini sayfaya vermez — bu bir
+ * güvenlik kararı, aşılacak bir kusur değil. Orada dosyanın baytları köprüye
+ * gönderilir, köprü onu uygulamanın kendi klasörüne yazar ve sonuç
+ * Resimler/Scalio'ya düşer (bkz. UpscaleBridge.StageDroppedFile).
+ *
+ * Düz bir tarayıcıda (önizleme) dosya adı yolun yerine geçer: gerçek bir
+ * diske zaten bakılmıyor.
+ */
+async function droppedPath(file) {
+    if (file.path) {
+        return file.path;
+    }
+
+    if (!hasBridge) {
+        return file.name;
+    }
+
+    try {
+        const data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result).split(',', 2)[1] ?? '');
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        });
+
+        // Klasör ya da okunamayan öğe: bayt yok.
+        if (!data) {
+            return null;
+        }
+
+        const result = await bridge.send('stage_dropped_file', { fileName: file.name, data });
+
+        return result.path;
+    } catch {
+        return null;
+    }
+}
 
 function addPendingFiles(paths, droppedFiles) {
     for (let i = 0; i < paths.length; i++) {

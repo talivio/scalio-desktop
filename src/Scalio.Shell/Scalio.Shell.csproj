@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Pencere kabuklarının PAYLAŞTIĞI parça: arayüz (ui/), arayüz↔motor köprüsü
+    ve gömülü kaynakların sunumu.
+
+    ⚠️ İKİ KABUK VAR, TEK ARAYÜZ. Windows'ta WPF + WebView2 (Scalio.App),
+    macOS ve Linux'ta Photino (Scalio.Desktop). Köprü ve arayüz burada durur
+    ki bir düzeltme üç işletim sistemine birden gitsin; kabuklarda yalnız
+    pencere, dosya seçici ve webview bağlantısı kalır.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Scalio.Shell</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scalio.Core\Scalio.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    ⚠️ ARAYÜZ İKİLİYE GÖMÜLÜR, klasör olarak kopyalanmaz.
+
+    Yanı başında duran bir `ui/app.js`, uygulamanın davranışını değiştirmek
+    için açık bir kapıdır; gömülü kaynak öyle değil. Kabuklar kaynakları
+    webview'a doğrudan akışla verir (bkz. UiResources) — yerel HTTP sunucusu
+    YOK, port çakışması ve güvenlik duvarı uyarısı diye bir hata sınıfı yok.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="ui\**\*" LogicalName="ui/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

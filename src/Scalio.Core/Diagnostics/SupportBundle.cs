@@ -76,9 +76,7 @@ public static class SupportBundle
     {
         try
         {
-            return System.Diagnostics.FileVersionInfo
-                .GetVersionInfo(Environment.ProcessPath ?? typeof(SupportBundle).Assembly.Location)
-                .ProductVersion?.Split('+')[0] ?? "?";
+            return ScalioVersion.Current;
         }
         catch
         {

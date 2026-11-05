@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Scalio.Core.Diagnostics;
@@ -55,23 +54,14 @@ public sealed class UpdateChecker(HttpClient? http = null)
 
     private readonly HttpClient _http = http ?? new HttpClient { Timeout = Timeout };
 
-    /// <summary>Çalışan ikilinin sürümü.</summary>
-    public static string CurrentVersion
-    {
-        get
-        {
-            try
-            {
-                return FileVersionInfo
-                    .GetVersionInfo(Environment.ProcessPath ?? typeof(UpdateChecker).Assembly.Location)
-                    .ProductVersion?.Split('+')[0] ?? "0.0.0";
-            }
-            catch
-            {
-                return "0.0.0";
-            }
-        }
-    }
+    /// <summary>
+    /// Sunucunun yayımladığı paket (Windows yükleyicisi) bu makineye mi ait?
+    /// Testler iki yolu da her sistemde sınayabilsin diye ayarlanabilir.
+    /// </summary>
+    internal bool UsesWindowsInstaller { get; init; } = OperatingSystem.IsWindows();
+
+    /// <summary>Çalışan ikilinin sürümü (bkz. ScalioVersion).</summary>
+    public static string CurrentVersion => ScalioVersion.Current;
 
     public async Task<UpdateStatus> CheckAsync(CancellationToken cancellationToken = default)
     {
@@ -96,6 +86,18 @@ public sealed class UpdateChecker(HttpClient? http = null)
                 "update",
                 $"Sürüm denetimi · çalışan {current} · yayındaki {payload.Latest}"
                 + $"{(newer ? " · YENİSİ VAR" : "")}{(required ? " · ZORUNLU" : "")}");
+
+            /*
+             * ⚠️ Sunucunun verdiği adres ve özet WINDOWS YÜKLEYİCİSİNİNDİR
+             * (`Scalio-x.y.z-setup.exe`). macOS ve Linux'ta kullanıcı sitenin
+             * indirme sayfasına gönderilir; sayfa işletim sistemine göre doğru
+             * paketi sunar. Özet de o yüzden taşınmaz — başka bir dosyanın
+             * özeti, yanlış bir doğrulama olurdu.
+             */
+            if (!UsesWindowsInstaller)
+            {
+                return new UpdateStatus(current, payload.Latest, newer, required, ScalioOptions.RelayUrl);
+            }
 
             return new UpdateStatus(current, payload.Latest, newer, required, payload.Url, Normalise(payload.Sha256));
         }

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Scalio.App.Bridge;
+namespace Scalio.Shell;
 
 public static class BridgeJson
 {
@@ -94,6 +94,14 @@ public sealed class BridgeRequest
     /// <summary>enqueueJob: "hero" | "card" | "instagram" | "opengraph" | null (yok).</summary>
     [JsonPropertyName("cropPreset")]
     public string? CropPreset { get; set; }
+
+    /// <summary>stageDroppedFile: bırakılan dosyanın adı (yol değil, yalnız ad).</summary>
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; set; }
+
+    /// <summary>stageDroppedFile: bırakılan dosyanın baytları, base64.</summary>
+    [JsonPropertyName("data")]
+    public string? Data { get; set; }
 
     /// <summary>cancelJob / openInFolder: hedef işin köprü kimliği.</summary>
     [JsonPropertyName("jobId")]

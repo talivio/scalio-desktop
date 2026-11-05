@@ -85,9 +85,7 @@ public static class ScalioLog
 
             Roll();
 
-            var version = FileVersionInfo
-                .GetVersionInfo(Environment.ProcessPath ?? typeof(ScalioLog).Assembly.Location)
-                .ProductVersion?.Split('+')[0] ?? "?";
+            var version = ScalioVersion.Current;
 
             Write(LogLevel.Info, role, "─────────────────────────────────────────────");
             Write(LogLevel.Info, role, $"Scalio {version} · {Environment.OSVersion.VersionString} · "

@@ -1,0 +1,13 @@
+Package: scalio
+Version: __VERSION__
+Section: graphics
+Priority: optional
+Architecture: amd64
+Installed-Size: __SIZE__
+Maintainer: Talivio Technology <support@talivio.com>
+Homepage: https://scalio.talivio.com
+Depends: libwebkit2gtk-4.1-0, libgtk-3-0, libnotify4, libgomp1, libvulkan1, mesa-vulkan-drivers | vulkan-icd
+Description: Free, open-source AI image upscaling
+ Scalio enlarges photos and illustrations x2 or x4 with Real-ESRGAN,
+ running locally on your own GPU through Vulkan. No account, no
+ subscription; images never leave the computer.

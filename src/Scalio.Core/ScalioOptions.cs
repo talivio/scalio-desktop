@@ -26,4 +26,47 @@ public static class ScalioOptions
     /// </summary>
     public static string EnginePath => Environment.GetEnvironmentVariable("SCALIO_ENGINE_PATH")
                                        ?? Path.Combine(AppContext.BaseDirectory, "engine");
+
+    /// <summary>Motor ikilisinin adı: Windows'ta `.exe` uzantılı, macOS ve Linux'ta uzantısız.</summary>
+    public static string EngineFileName => OperatingSystem.IsWindows()
+        ? "realesrgan-ncnn-vulkan.exe"
+        : "realesrgan-ncnn-vulkan";
+
+    /// <summary>
+    /// Motor ikilisinin tam yolu.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ macOS paketinde (`Scalio.app`) motor `engine/` altında DEĞİL,
+    /// `Contents/MacOS/` içindedir: Apple imzası çalıştırılabilir kodu orada
+    /// bekler, modeller (veri) ise `Contents/Resources/`'a gider. Karışık bir
+    /// klasör imzalama ve noter onayında sorun çıkarır. Uygulamanın kendisi
+    /// mimariye göre bir alt klasörde (`Contents/MacOS/arm64/`) çalışır;
+    /// universal motor iki mimariye ortaktır (bkz. tools/package-macos.sh).
+    /// </remarks>
+    public static string EngineExecutable => MacBundleContents() is { } contents
+        ? Path.Combine(contents, "MacOS", EngineFileName)
+        : Path.Combine(EnginePath, EngineFileName);
+
+    /// <summary>Model dosyalarının (`*.param`/`*.bin`) klasörü.</summary>
+    public static string ModelsPath => MacBundleContents() is { } contents
+        ? Path.Combine(contents, "Resources", "engine", "models")
+        : Path.Combine(EnginePath, "models");
+
+    /// <summary>
+    /// Bir macOS `.app` paketinin içinden çalışılıyorsa paketin `Contents`
+    /// klasörü; değilse (ya da geliştirmede motor yolu verildiyse) null.
+    /// </summary>
+    private static string? MacBundleContents()
+    {
+        if (!OperatingSystem.IsMacOS() || Environment.GetEnvironmentVariable("SCALIO_ENGINE_PATH") is not null)
+        {
+            return null;
+        }
+
+        const string marker = "/Contents/MacOS/";
+
+        var index = AppContext.BaseDirectory.LastIndexOf(marker, StringComparison.Ordinal);
+
+        return index < 0 ? null : AppContext.BaseDirectory[..(index + "/Contents".Length)];
+    }
 }

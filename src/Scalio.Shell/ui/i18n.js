@@ -35,6 +35,7 @@ const TRANSLATIONS = {
     'main.pick_files':      { en: 'Choose images…', tr: 'Görsel seç…' },
     'main.pick_folder':     { en: 'Choose a folder…', tr: 'Klasör seç…' },
     'main.pick_failed':     { en: 'The file picker could not be opened.', tr: 'Dosya seçici açılamadı.' },
+    'main.drop_failed':     { en: 'This file could not be added. Use "Choose images…" instead.', tr: 'Bu dosya eklenemedi. Bunun yerine "Görsel seç…" düğmesini kullanın.' },
     'main.enqueue_failed':  { en: 'The images could not be added to the queue.', tr: 'Görseller kuyruğa eklenemedi.' },
     'main.files_added':     { en: '{0} image(s) ready to configure.', tr: 'Ayarlanmayı bekleyen {0} görsel var.' },
     'main.remove_pending':  { en: 'Remove', tr: 'Kaldır' },

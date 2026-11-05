@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppImage girişi: uygulama usr/lib/scalio altında, motor da onun engine/ klasöründe.
+here="$(dirname "$(readlink -f "$0")")"
+exec "$here/usr/lib/scalio/Scalio" "$@"

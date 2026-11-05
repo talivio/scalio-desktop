@@ -1,6 +1,16 @@
 <Project>
 
   <!--
+    ⚠️ SÜRÜM TEK YERDE: Windows (Scalio.App) ve macOS/Linux (Scalio.Desktop)
+    aynı numarayla çıkar. Sitedeki tek "son sürüm" değeri üç paketi birden
+    tarif ediyor; iki ayrı numara bir sistemin her açılışta "güncelleme var"
+    demesiyle sonuçlanırdı.
+  -->
+  <PropertyGroup>
+    <Version>0.3.0</Version>
+  </PropertyGroup>
+
+  <!--
     Tüm projeler için ortak yayın ayarları.
 
     ⚠️ Release'te hata ayıklama sembolü ÜRETİLMEZ. Aksi hâlde yayın klasöründe

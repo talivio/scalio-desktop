@@ -2,7 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
-using Scalio.App.Bridge;
+using Scalio.Shell;
 
 namespace Scalio.App;
 
@@ -64,9 +64,9 @@ public static partial class SelfTest
 
         Check("Arayüz kaynakları", () =>
         {
-            // Arayüz artık ikiliye GÖMÜLÜ (bkz. Scalio.App.csproj); diskte
+            // Arayüz ikiliye GÖMÜLÜ (bkz. Scalio.Shell.csproj); diskte
             // aranacak bir klasör yok.
-            var assembly = typeof(SelfTest).Assembly;
+            var assembly = UiResources.Assembly;
 
             using var entry = assembly.GetManifestResourceStream("ui/index.html");
 

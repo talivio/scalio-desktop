@@ -2,7 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
-using Scalio.App.Bridge;
+using Scalio.Shell;
 
 namespace Scalio.App;
 
@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     /// </summary>
     private const string UiHost = "scalio.local";
 
-    private readonly UpscaleBridge _bridge = new();
+    private readonly UpscaleBridge _bridge = new(new WpfDesktopPlatform());
 
     public MainWindow()
     {
@@ -192,24 +192,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void ServeEmbeddedResource(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
     {
-        var path = new Uri(e.Request.Uri).AbsolutePath.TrimStart('/');
-
-        if (path.Length == 0)
-        {
-            path = "index.html";
-        }
-
-        /*
-         * ⚠️ Yol DOĞRUDAN kaynak adına çevrilmez: `..` ya da eğik çizgi
-         * oyunlarıyla başka bir gömülü kaynağa ulaşmayı denemek anlamsız olsun
-         * diye yalnızca dosya adı alınıyor. Arayüz düz bir klasör, alt dizini
-         * yok.
-         */
-        var name = "ui/" + Path.GetFileName(path);
-
-        var stream = typeof(MainWindow).Assembly.GetManifestResourceStream(name);
-
-        if (stream is null)
+        // Arayüz Scalio.Shell'e gömülü; macOS/Linux kabuğu da aynı dosyaları sunar.
+        if (UiResources.Open(new Uri(e.Request.Uri)) is not { } resource)
         {
             e.Response = Browser.CoreWebView2.Environment.CreateWebResourceResponse(
                 null, 404, "Not Found", "");
@@ -217,18 +201,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var type = Path.GetExtension(path).ToLowerInvariant() switch
-        {
-            ".html" => "text/html; charset=utf-8",
-            ".css" => "text/css; charset=utf-8",
-            ".js" => "text/javascript; charset=utf-8",
-            ".svg" => "image/svg+xml",
-            ".png" => "image/png",
-            _ => "application/octet-stream",
-        };
-
         e.Response = Browser.CoreWebView2.Environment.CreateWebResourceResponse(
-            stream, 200, "OK", $"Content-Type: {type}");
+            resource.Stream, 200, "OK", $"Content-Type: {resource.ContentType}");
     }
 
     private void Post(object payload)

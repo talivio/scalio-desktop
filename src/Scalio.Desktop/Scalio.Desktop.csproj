@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    macOS ve Linux kabuğu: Photino.NET (macOS'ta WKWebView, Linux'ta
+    WebKitGTK) içinde Scalio.Shell'deki arayüzün ve köprünün AYNISI.
+
+    ⚠️ WINDOWS BU PROJEYİ KULLANMAZ. Windows'ta WPF + WebView2 kabuğu
+    (Scalio.App) ve Inno Setup kurulumu olduğu gibi kaldı; çalışan bir ürünü
+    yeni bir kabuk için riske atmanın karşılığı yok.
+
+    Paketleme: tools/package-macos.sh (.app + .dmg), tools/package-linux.sh
+    (.deb + AppImage).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <AssemblyName>Scalio</AssemblyName>
+    <RootNamespace>Scalio.Desktop</RootNamespace>
+
+    <Product>Scalio</Product>
+    <Company>Talivio Technology</Company>
+    <Authors>Talivio Technology</Authors>
+    <AssemblyTitle>Scalio</AssemblyTitle>
+    <Description>AI image upscaling with Real-ESRGAN.</Description>
+    <Copyright>© 2026 Talivio Technology</Copyright>
+
+    <!--
+      ⚠️ Tek dosya yayında yerel kütüphaneler (Photino.Native, Magick.Native)
+      İKİLİYE GÖMÜLMEZ, yanında durur. Gömülselerdi her açılışta geçici
+      klasöre açılırlardı: macOS'ta imzalı paketin dışına imzası doğrulanamayan
+      kod çıkarmak demek (noter onayı ve Gatekeeper bunu sevmez).
+    -->
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scalio.Core\Scalio.Core.csproj" />
+    <ProjectReference Include="..\Scalio.Shell\Scalio.Shell.csproj" />
+  </ItemGroup>
+
+  <!-- Linux'ta pencere simgesi; macOS paketi kendi .icns'ini taşır. -->
+  <ItemGroup>
+    <None Include="scalio.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

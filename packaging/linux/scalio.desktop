@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Scalio
+GenericName=Image Upscaler
+Comment=AI image upscaling on your own GPU
+Exec=scalio
+Icon=scalio
+Terminal=false
+Categories=Graphics;Photography;
+StartupWMClass=Scalio

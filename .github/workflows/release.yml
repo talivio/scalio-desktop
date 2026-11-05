@@ -42,3 +42,135 @@ jobs:
           files: |
             dist/Scalio-*-setup.exe
             dist/Scalio-*-setup.exe.sha256
+
+  # ── Linux ──────────────────────────────────────────────────────────────────
+  # ⚠️ ubuntu-22.04'te derlenir: NuGet'teki Photino.Native.so glibc 2.38 istiyor
+  # (yalnız 24.04+). Aynı sürüm burada kaynaktan derlenince paket 22.04'te de
+  # açılır. Sınama hem 22.04 hem 24.04'te yapılır.
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet test tests/Scalio.Core.Tests --nologo
+
+      - name: Build Photino.Native 4.0.22 from source
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libnotify-dev
+          git clone --depth 1 --branch v4.0.22 https://github.com/tryphotino/photino.Native.git "$RUNNER_TEMP/photino"
+          test "$(git -C "$RUNNER_TEMP/photino" rev-parse HEAD)" = 3ba4b937d6337b5c58344445db08a5a9a63f07c8
+          cd "$RUNNER_TEMP/photino"
+          mkdir -p lib/x64
+          c++ -std=c++2a -Wall -O2 -shared -fPIC -o lib/x64/Photino.Native.so \
+            Photino.Native/Photino.Linux.Dialog.cpp Photino.Native/Photino.Linux.cpp Photino.Native/Exports.cpp \
+            $(pkg-config --cflags --libs gtk+-3.0 webkit2gtk-4.1 libnotify)
+
+      - name: Package (.deb + AppImage)
+        env:
+          PHOTINO_NATIVE_SO: ${{ runner.temp }}/photino/lib/x64/Photino.Native.so
+        run: ./tools/package-linux.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scalio-linux
+          path: |
+            dist/scalio_*_amd64.deb
+            dist/scalio_*_amd64.deb.sha256
+            dist/Scalio-*-x86_64.AppImage
+            dist/Scalio-*-x86_64.AppImage.sha256
+
+  linux-test:
+    needs: linux
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: scalio-linux
+
+      # ⚠️ Runner'da GPU yok: Mesa'nın `lavapipe`'ı (CPU üstünde Vulkan) motoru
+      # çalıştırır. Yavaş ama zinciri uçtan uca kanıtlar — paket kuruluyor,
+      # bağımlılıklar geliyor, motor gerçekten bir görsel büyütüyor.
+      - name: Install the .deb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./scalio_*_amd64.deb xvfb
+
+      - name: Self-test (.deb, real engine run)
+        run: scalio --selftest
+
+      - name: Self-test (AppImage)
+        run: |
+          chmod +x Scalio-*-x86_64.AppImage
+          ./Scalio-*-x86_64.AppImage --appimage-extract-and-run --selftest
+
+      # Pencere açılıyor ve 20 saniye çökmeden ayakta kalıyor mu? `timeout`
+      # süreci öldürürse 124 döner — beklenen sonuç bu.
+      - name: Window smoke test (Xvfb)
+        run: |
+          set +e
+          xvfb-run -a timeout 20 scalio
+          code=$?
+          echo "exit code: $code"
+          test "$code" -eq 124
+
+  # ── macOS ──────────────────────────────────────────────────────────────────
+  # ⚠️ Bu iş İMZASIZ dmg üretir ve yalnız iş çıktısı olarak saklar; sürüme
+  # EKLENMEZ. İmzalı + noter onaylı dmg, Developer ID sertifikasının durduğu
+  # Mac'te tools/package-macos.sh ile üretilip sürüme elle eklenir.
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet test tests/Scalio.Core.Tests --nologo
+
+      - name: Package (.app + .dmg, unsigned)
+        run: ./tools/package-macos.sh
+
+      # ⚠️ GitHub'ın macOS sanal makinelerinde Metal/GPU erişimi güvenilir
+      # değil; motor sınaması orada başarısız olabilir ve bu paketin değil
+      # ortamın sorunu. Asıl sınama yerel Mac'te yapılır (bkz. README).
+      - name: Self-test (arm64 + x64 under Rosetta)
+        continue-on-error: true
+        run: |
+          dist/macos/Scalio.app/Contents/MacOS/Scalio --selftest
+          arch -x86_64 dist/macos/Scalio.app/Contents/MacOS/Scalio --selftest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scalio-macos-unsigned
+          path: |
+            dist/Scalio-*-macos.dmg
+            dist/Scalio-*-macos.dmg.sha256
+
+  attach-linux:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: linux-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: scalio-linux
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            scalio_*_amd64.deb
+            scalio_*_amd64.deb.sha256
+            Scalio-*-x86_64.AppImage
+            Scalio-*-x86_64.AppImage.sha256

@@ -6,7 +6,7 @@ using Scalio.Core.Engine;
 using Scalio.Core.Pipeline;
 using Scalio.Core.Support;
 
-namespace Scalio.App.Bridge;
+namespace Scalio.Shell;
 
 /// <summary>
 /// Arayüz ile büyütme motoru arasındaki tek kapı.
@@ -23,6 +23,10 @@ namespace Scalio.App.Bridge;
 public sealed class UpscaleBridge
 {
     private readonly UpscalePipeline _pipeline;
+    private readonly IDesktopPlatform _platform;
+
+    /// <summary>Bırakılıp uygulama klasörüne kopyalanan kaynaklar (bkz. StageDroppedFile).</summary>
+    private readonly HashSet<string> _stagedSources = new(StringComparer.Ordinal);
 
     private readonly object _lock = new();
     private readonly List<JobRecord> _jobs = new();
@@ -34,15 +38,44 @@ public sealed class UpscaleBridge
 
     private Action<object>? _pushEvent;
 
-    public UpscaleBridge()
+    public UpscaleBridge(IDesktopPlatform platform)
     {
-        var enginePath = Path.Combine(ScalioOptions.EnginePath, "realesrgan-ncnn-vulkan.exe");
-        var modelsPath = Path.Combine(ScalioOptions.EnginePath, "models");
+        _platform = platform;
+        _pipeline = new UpscalePipeline(new EsrganUpscaleEngine(ScalioOptions.EngineExecutable, ScalioOptions.ModelsPath));
 
-        _pipeline = new UpscalePipeline(new EsrganUpscaleEngine(enginePath, modelsPath));
+        RemoveOldDroppedCopies();
     }
 
-    /// <summary>Kuyruk olaylarının WebView2'ye `postMessage` ile iletileceği geri çağrı.</summary>
+    /// <summary>
+    /// Önceki oturumlardan kalan bırakılmış kopyaları siler.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Yalnız BİR GÜNDEN ESKİLER: Linux'ta aynı anda iki pencere açık
+    /// olabilir ve diğerinin henüz işlemediği kopyayı silmemek gerekir.
+    /// </remarks>
+    private static void RemoveOldDroppedCopies()
+    {
+        try
+        {
+            var root = new DirectoryInfo(Path.Combine(ScalioPaths.JobsRoot, "dropped"));
+
+            if (!root.Exists)
+            {
+                return;
+            }
+
+            foreach (var folder in root.EnumerateDirectories().Where(d => d.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-1)))
+            {
+                folder.Delete(recursive: true);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ScalioLog.Debug("bridge", $"Eski bırakılmış kopyalar silinemedi: {e.Message}");
+        }
+    }
+
+    /// <summary>Kuyruk olaylarının webview'a `postMessage` ile iletileceği geri çağrı.</summary>
     public void SetPushHandler(Action<object> push) => _pushEvent = push;
 
     public async Task<BridgeResponse> HandleAsync(BridgeRequest request)
@@ -65,6 +98,7 @@ public sealed class UpscaleBridge
                 "pick_files" => PickFiles(request),
                 "pick_folder" => PickFolder(request),
                 "get_thumbnail" => GetThumbnail(request),
+                "stage_dropped_file" => StageDroppedFile(request),
 
                 "enqueue_job" => EnqueueJob(request),
                 "cancel_job" => CancelJob(request),
@@ -94,17 +128,8 @@ public sealed class UpscaleBridge
 
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"];
 
-    private static BridgeResponse PickFiles(BridgeRequest request)
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "Görsel seç",
-            Multiselect = true,
-            Filter = "Görseller|*.jpg;*.jpeg;*.png;*.webp;*.bmp;*.tif;*.tiff|Tüm dosyalar|*.*",
-        };
-
-        return Ok(request, new { paths = dialog.ShowDialog() == true ? dialog.FileNames : [] });
-    }
+    private BridgeResponse PickFiles(BridgeRequest request)
+        => Ok(request, new { paths = _platform.PickFiles("Görsel seç", ImageExtensions) });
 
     /// <summary>
     /// Ayarlanmayı bekleyen bir görsel için küçük bir önizleme üretir.
@@ -151,20 +176,108 @@ public sealed class UpscaleBridge
         }
     }
 
-    private static BridgeResponse PickFolder(BridgeRequest request)
+    private BridgeResponse PickFolder(BridgeRequest request)
     {
-        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Klasör seç" };
+        var folder = _platform.PickFolder("Klasör seç");
 
-        if (dialog.ShowDialog() != true)
+        if (folder is null)
         {
             return Ok(request, new { paths = Array.Empty<string>() });
         }
 
-        var paths = Directory.EnumerateFiles(dialog.FolderName)
+        var paths = Directory.EnumerateFiles(folder)
             .Where(p => ImageExtensions.Contains(Path.GetExtension(p).ToLowerInvariant()))
             .ToArray();
 
         return Ok(request, new { paths });
+    }
+
+    /// <summary>Bırakılan dosya için üst sınır — bayt base64 olarak webview'dan geçiyor.</summary>
+    private const long MaxDroppedBytes = 200L * 1024 * 1024;
+
+    /// <summary>
+    /// macOS/Linux'ta bırakılan bir dosyayı uygulamanın kendi klasörüne yazar.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ NEDEN: WebKit (WKWebView / WebKitGTK) bırakılan dosyanın diskteki
+    /// yolunu sayfaya VERMİYOR; WebView2 veriyor. Motor bir dosya yolu
+    /// istediği için baytlar buraya gelir.
+    ///
+    /// ⚠️ Kopya `jobs/dropped/` altında durur ama SONUÇ oraya yazılmaz —
+    /// kullanıcının bulamayacağı bir yer olurdu. Sonuç Resimler/Scalio'ya
+    /// gider (bkz. OutputFolderFor) ve "Klasörde göster" onu açar.
+    ///
+    /// ⚠️ Yalnız DOSYA ADI alınır; `../` gibi bir adla klasör dışına yazmak
+    /// mümkün olmasın.
+    /// </remarks>
+    private BridgeResponse StageDroppedFile(BridgeRequest request)
+    {
+        var name = Path.GetFileName(request.FileName ?? "");
+
+        if (name.Length == 0 || !ImageExtensions.Contains(Path.GetExtension(name).ToLowerInvariant()))
+        {
+            return Error(request, "Desteklenmeyen dosya.");
+        }
+
+        if (string.IsNullOrEmpty(request.Data) || request.Data.Length > MaxDroppedBytes / 3 * 4 + 4)
+        {
+            return Error(request, "Dosya okunamadı ya da çok büyük.");
+        }
+
+        byte[] bytes;
+
+        try
+        {
+            bytes = Convert.FromBase64String(request.Data);
+        }
+        catch (FormatException)
+        {
+            return Error(request, "Dosya okunamadı.");
+        }
+
+        var folder = Path.Combine(ScalioPaths.JobsRoot, "dropped", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+
+        var path = Path.Combine(folder, name);
+        File.WriteAllBytes(path, bytes);
+
+        lock (_lock)
+        {
+            _stagedSources.Add(path);
+        }
+
+        return Ok(request, new { path });
+    }
+
+    /// <summary>
+    /// Sonucun yazılacağı klasör: kaynağın yanı; bırakılıp kopyalanmış bir
+    /// kaynaksa Resimler/Scalio.
+    /// </summary>
+    private string OutputFolderFor(string source)
+    {
+        bool staged;
+
+        lock (_lock)
+        {
+            staged = _stagedSources.Contains(source);
+        }
+
+        if (!staged)
+        {
+            return Path.GetDirectoryName(Path.GetFullPath(source)) ?? Path.GetTempPath();
+        }
+
+        var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+
+        if (string.IsNullOrEmpty(pictures))
+        {
+            pictures = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
+        var folder = Path.Combine(pictures, "Scalio");
+        Directory.CreateDirectory(folder);
+
+        return folder;
     }
 
     // ── Kuyruk ───────────────────────────────────────────────────────────────
@@ -233,13 +346,14 @@ public sealed class UpscaleBridge
             {
                 // ⚠️ ÇIKTI KAYNAĞIN YANINA yazılır: bu ürünün sunum ekranında
                 // ayrı bir "hedef klasör" adımı yok (brief kapsamı dışı
-                // bırakıldı — bkz. rapor). "Klasörde göster" bu yüzden her
-                // zaman kaynağın klasörünü açar.
+                // bırakıldı — bkz. rapor). "Klasörde göster" bu yüzden
+                // sonucun klasörünü açar. Tek istisna macOS/Linux'ta
+                // bırakılan dosyalar (bkz. OutputFolderFor).
                 job = UpscaleJob.Create(
                     path,
                     model,
                     format,
-                    Path.GetDirectoryName(Path.GetFullPath(path)) ?? Path.GetTempPath(),
+                    OutputFolderFor(path),
                     scale: request.Scale,
                     targetWidth: request.TargetWidth,
                     quality: request.Quality ?? 90,
@@ -441,14 +555,7 @@ public sealed class UpscaleBridge
 
         try
         {
-            // ⚠️ `/select,` ile Gezgin dosyayı SEÇİLİ olarak açar — yalnızca
-            // klasörü açıp kullanıcıyı onlarca dosya arasında bırakmaz.
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = $"/select,\"{Path.GetFullPath(path)}\"",
-                UseShellExecute = true,
-            });
+            Process.Start(RevealCommand(Path.GetFullPath(path)));
         }
         catch (Exception e)
         {
@@ -456,6 +563,36 @@ public sealed class UpscaleBridge
         }
 
         return Ok(request, new { opened = true });
+    }
+
+    /// <summary>
+    /// Dosyayı SEÇİLİ olarak gösteren komut — yalnızca klasörü açıp
+    /// kullanıcıyı onlarca dosya arasında bırakmaz.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Linux'ta dosya yöneticileri arasında ortak bir "seçili göster"
+    /// komutu yok (Nautilus, Dolphin, Thunar ayrı); `xdg-open` klasörü açar.
+    /// </remarks>
+    private static ProcessStartInfo RevealCommand(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return new ProcessStartInfo { FileName = "explorer.exe", Arguments = $"/select,\"{path}\"", UseShellExecute = true };
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            var open = new ProcessStartInfo { FileName = "open", UseShellExecute = false };
+            open.ArgumentList.Add("-R");
+            open.ArgumentList.Add(path);
+
+            return open;
+        }
+
+        var xdg = new ProcessStartInfo { FileName = "xdg-open", UseShellExecute = false };
+        xdg.ArgumentList.Add(Path.GetDirectoryName(path) ?? path);
+
+        return xdg;
     }
 
     // ── Destek / güncelleme ──────────────────────────────────────────────────

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Sertleştirilmiş çalışma zamanı (noter onayı şartı) altında .NET'in
+  çalışabilmesi için gereken en az izinler: JIT derleyicisi yürütülebilir
+  bellek ister. Ağ, dosya ya da kamera izni YOK — uygulama sandbox'ta değil,
+  dosyalara kullanıcının seçtiği kadar erişir.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+</dict>
+</plist>

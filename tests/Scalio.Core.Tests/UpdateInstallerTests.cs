@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using Scalio.Core;
 using Scalio.Core.Support;
 
 namespace Scalio.Core.Tests;
@@ -171,15 +172,32 @@ public sealed class UpdateInstallerTests : IDisposable
         var upper = Sha(Package).ToUpperInvariant();
         var handler = new FakeJson($$"""{"latest":"99.0.0","url":"https://scalio.talivio.com/download","sha256":"{{upper}}"}""");
 
-        var status = await new UpdateChecker(new HttpClient(handler)).CheckAsync();
+        var status = await new UpdateChecker(new HttpClient(handler)) { UsesWindowsInstaller = true }.CheckAsync();
 
         Assert.Equal(Sha(Package), status.Sha256);
         Assert.True(status.CanInstall);
 
-        var bad = await new UpdateChecker(new HttpClient(new FakeJson("""{"latest":"99.0.0","url":"https://scalio.talivio.com/download","sha256":"zz"}"""))).CheckAsync();
+        var bad = await new UpdateChecker(new HttpClient(new FakeJson("""{"latest":"99.0.0","url":"https://scalio.talivio.com/download","sha256":"zz"}"""))) { UsesWindowsInstaller = true }.CheckAsync();
 
         Assert.Null(bad.Sha256);
         Assert.False(bad.CanInstall);
+    }
+
+    /// <summary>
+    /// macOS/Linux: sunucunun adresi ve özeti Windows yükleyicisinindir — kullanıcı
+    /// sitenin indirme sayfasına gider, `.exe` özeti taşınmaz.
+    /// </summary>
+    [Fact]
+    public async Task Other_systems_are_sent_to_the_download_page_not_the_windows_installer()
+    {
+        var handler = new FakeJson($$"""{"latest":"99.0.0","url":"https://scalio.talivio.com/download/Scalio-99.0.0-setup.exe","sha256":"{{Sha(Package)}}"}""");
+
+        var status = await new UpdateChecker(new HttpClient(handler)) { UsesWindowsInstaller = false }.CheckAsync();
+
+        Assert.True(status.UpdateAvailable);
+        Assert.Equal(ScalioOptions.RelayUrl, status.DownloadUrl);
+        Assert.Null(status.Sha256);
+        Assert.False(status.CanInstall);
     }
 
     private sealed class FakeJson(string body) : HttpMessageHandler
