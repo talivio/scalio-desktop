@@ -120,7 +120,9 @@ fi
 if [[ -n "${SCALIO_NOTARY_PROFILE:-}" ]]; then
     echo 'Noter onayına gönderiliyor (birkaç dakika sürebilir)…'
     xcrun notarytool submit "$dmg" --keychain-profile "$SCALIO_NOTARY_PROFILE" --wait
+    # ⚠️ Onay reddedilirse damga basılamaz ve betik burada durur (set -e).
     xcrun stapler staple "$dmg"
+    spctl -a -vv -t exec "$app"
 fi
 
 shasum -a 256 "$dmg" | sed "s:  .*/:  :" > "$dmg.sha256"

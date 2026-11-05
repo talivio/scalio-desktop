@@ -61,11 +61,40 @@ SCALIO_ENGINE_PATH=/tmp/scalio-engine dotnet run --project src/Scalio.Desktop
 ./tools/package-linux.sh   # .deb + AppImage (on Linux)
 ```
 
-macOS signing: set `SCALIO_MAC_SIGN_IDENTITY` (a *Developer ID Application*
-certificate in the keychain) and `SCALIO_NOTARY_PROFILE` (a
-`xcrun notarytool store-credentials` profile). Without them the app is ad-hoc
-signed: it runs on the Mac that built it, but Gatekeeper on other Macs refuses
-to open it until the user allows it in System Settings → Privacy & Security.
+### macOS signing and notarization
+
+Without signing the app is ad-hoc signed: it runs on the Mac that built it, but
+Gatekeeper on other Macs refuses to open it until the user allows it in System
+Settings → Privacy & Security. Release builds must be signed and notarized.
+CI never signs; signed builds are made on the Mac that holds the certificate.
+
+One-time setup (Apple Developer account holder):
+
+1. developer.apple.com → Certificates → **Developer ID Application**
+   (not "Apple Distribution", which only works for the App Store). Create it
+   from a CSR made in Keychain Access on the build Mac and install the `.cer`
+   there; `security find-identity -v -p codesigning` must list it.
+2. App Store Connect → Users and Access → Integrations → **App Store Connect API**:
+   create a key with the *Developer* role and download the `.p8` (once).
+3. Store the notarization credentials in the keychain under a profile name:
+
+   ```bash
+   xcrun notarytool store-credentials scalio-notary --key <path/to/AuthKey.p8> --key-id <KEY ID> --issuer <ISSUER ID>
+   ```
+
+Every release:
+
+```bash
+SCALIO_MAC_SIGN_IDENTITY="Developer ID Application: <name> (<team id>)" \
+SCALIO_NOTARY_PROFILE=scalio-notary \
+./tools/package-macos.sh
+spctl -a -vv -t exec dist/macos/Scalio.app   # must say "accepted, source=Notarized Developer ID"
+```
+
+The script signs inside-out with the hardened runtime
+(`packaging/macos/Scalio.entitlements`: JIT only), submits the dmg to Apple,
+waits for the verdict and staples the ticket. The bundle identifier is
+`com.talivio.scalio`; Developer ID distribution does not need an App ID.
 
 On Linux, the NuGet build of `Photino.Native.so` requires glibc 2.38 (Ubuntu
 24.04+). The release workflow builds the same version from source on Ubuntu
